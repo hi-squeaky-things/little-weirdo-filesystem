@@ -1,60 +1,8 @@
 
-use embedded_storage::{self, ReadStorage, Storage};
+use embedded_storage::{self, Storage};
 extern crate alloc;
-use alloc::vec::Vec;
 
-pub struct MemoryStorage {
-    internal_memory: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct MemoryError;
-
-impl MemoryStorage {
-    pub fn new(size: usize) -> Self {
-        MemoryStorage {
-            internal_memory: alloc::vec![0; size],
-        }
-    }
-
-    pub fn dump(&mut self) -> &[u8] {
-        self.internal_memory.as_slice()
-    }
-}
-
-impl ReadStorage for MemoryStorage {
-    type Error = MemoryError;
-
-    fn read(&mut self, offset: u32, bytes: &mut [u8]) -> Result<(), Self::Error> {
-        let start = offset as usize;
-        let end = (offset + bytes.len() as u32) as usize;
-
-        if end > self.internal_memory.len() {
-            return Err(MemoryError);
-        }
-
-        bytes.copy_from_slice(&self.internal_memory[start..end]);
-        Ok(())
-    }
-
-    fn capacity(&self) -> usize {
-        return self.internal_memory.len();
-    }
-}
-
-impl Storage for MemoryStorage {
-    fn write(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Self::Error> {
-        let start = offset as usize;
-        let end = (offset + bytes.len() as u32) as usize;
-
-        if end > self.internal_memory.len() {
-            return Err(MemoryError);
-        }
-
-        self.internal_memory[start..end].copy_from_slice(bytes);
-        Ok(())
-    }
-}
+pub mod memory_storage;
 
 pub struct WeirdoFileSystem<T>
 where
@@ -125,9 +73,9 @@ where
         self.build_cache();
     }
 
-    fn build_cache(&mut self) {
+    pub fn build_cache(&mut self) {
         self.empty_block = 0;
-        self.total_blocks = (self.size as u32 / self.block_size as u32);
+        self.total_blocks = self.size as u32 / self.block_size as u32;
         for block in 0..self.total_blocks {
             let address = self.offset + (block * self.block_size as u32);
             let mut block_status = [0u8; 1];
@@ -161,7 +109,7 @@ where
         let chunks = payload.chunks(self.payload_size as usize);
 
         let mut block_key = key;
-        for (i, block) in chunks.enumerate() {
+        for (_i, block) in chunks.enumerate() {
             let empty_block_address = self.addres_of_empty_block();
             let _ = self.storage.write(
                 empty_block_address + OFFSET_BLOCK_STATUS as u32,
@@ -263,106 +211,3 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_memory_storage_read_write() {
-        let mut storage = MemoryStorage::new(0x100000);
-
-        // Write some data to the storage
-        let write_data = b"Hello, world!";
-
-        match storage.write(0, write_data) {
-            Ok(_) => {}
-            Err(e) => panic!("Write operation failed"),
-        }
-
-        // Read the data back from the storage
-        let mut read_buffer: Vec<u8> = alloc::vec![0; write_data.len()];
-        match storage.read(0, &mut read_buffer) {
-            Ok(_) => {
-                assert_eq!(read_buffer.as_slice(), write_data);
-            }
-            Err(e) => panic!("Read operation failed"),
-        }
-    }
-
-    #[test]
-    fn test_memory_storage_capacity() {
-        let mut storage = MemoryStorage::new(0x100000);
-        assert_eq!(storage.capacity(), 0x100000); // Ensure the data vector has the correct size
-    }
-
-    #[test]
-    fn test_fs_storage_read_write() {
-        let storage = MemoryStorage::new(0x100000);
-        let mut filesystem: WeirdoFileSystem<MemoryStorage> =
-            WeirdoFileSystem::new(storage, 0, 0x100000);
-        filesystem.format();
-
-        let payload = include_bytes!("../../examples/image_layout/patches/ebass.lwp");
-        let size = payload.len();
-
-        filesystem.write_key_value(1, payload).unwrap();
-
-        let mut buffer: [u8; 2042] = [0; 2042];
-        let size_of_value = filesystem.read_key_value(1, &mut buffer).unwrap();
-        assert_eq!(size_of_value, size as u16);
-        assert_eq!(&buffer[..size_of_value as usize], payload);
-    }
-
-    #[test]
-    fn test_fs_free_blocks() {
-        let storage = MemoryStorage::new(0x100000);
-        let mut filesystem: WeirdoFileSystem<MemoryStorage> =
-            WeirdoFileSystem::new(storage, 0, 0x100000);
-        filesystem.format();
-
-        let payload = include_bytes!("../../examples/image_layout/patches/ebass.lwp");
-        filesystem.write_key_value(1, payload).unwrap();
-        filesystem.write_key_value(2, payload).unwrap();
-        filesystem.write_key_value(3, payload).unwrap();
-        let free_blocks = filesystem.amount_of_free_blocks();
-        assert_eq!(free_blocks, 509);
-        filesystem.build_cache();
-        let free_blocks = filesystem.amount_of_free_blocks();
-        assert_eq!(free_blocks, 509);
-    }
-
-    #[test]
-    fn test_chunking() {
-        let storage = MemoryStorage::new(0x100000);
-        let mut filesystem: WeirdoFileSystem<MemoryStorage> =
-            WeirdoFileSystem::new(storage, 0, 0x100000);
-        filesystem.format();
-
-        let payload = include_bytes!("../../examples/image_layout/samples/0_Kick 808 Thud.raw");
-        let result = filesystem.write_key_value(800, payload).unwrap();
-         let result = filesystem.write_key_value(801, payload).unwrap();
-
-        let mut buffer: [u8; 30_000] = [0; 30_000];
-        let size_of_value = filesystem.read_key_value(800, &mut buffer).unwrap();
-        assert_eq!(size_of_value, payload.len() as u16);
-        assert_eq!(payload, &buffer[..size_of_value as usize]);
-    }
-
-    #[test]
-    fn test_fs_format() {
-        let storage = MemoryStorage::new(0x100000);
-        let mut filesystem: WeirdoFileSystem<MemoryStorage> =
-            WeirdoFileSystem::new(storage, 0, 0x100000);
-        filesystem.format();
-
-        let payload = include_bytes!("../../examples/image_layout/patches/ebass.lwp");
-        filesystem.write_key_value(1, payload).unwrap();
-        filesystem.write_key_value(2, payload).unwrap();
-        filesystem.write_key_value(3, payload).unwrap();
-        let free_blocks = filesystem.amount_of_free_blocks();
-        assert_eq!(free_blocks, 509);
-        filesystem.format();
-        let free_blocks = filesystem.amount_of_free_blocks();
-        assert_eq!(free_blocks, 512);
-    }
-}
