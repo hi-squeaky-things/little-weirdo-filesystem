@@ -1,3 +1,5 @@
+extern crate alloc;
+use alloc::vec::Vec;
 use embedded_storage::{ReadStorage, Storage};
 
 pub struct MemoryStorage {

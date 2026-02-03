@@ -1,4 +1,5 @@
 
+#![no_std]
 use embedded_storage::{self, Storage};
 extern crate alloc;
 
@@ -102,6 +103,7 @@ where
         if key > MAX_KEY_ID {
             return Err(WeirdoFileSystemError::KeyToLarge);
         }
+        // TODO Add a out-of-space check and throw an error if the value doesn't fit.
         //  if payload.len() + OFFSET_ADDRESS_PAYLOAD as usize >= self.block_size as usize {
         //      return Err(WeirdoFileSystemError::PayloadTooLarge);
         //  }
