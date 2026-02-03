@@ -1,0 +1,19 @@
+[package]
+name = "little_weirdo_filesystem"
+version = "0.1.0"
+edition = "2024"
+authors = ["Daniël <daniel@hi-squeaky-things.nl>"]
+description = "A Rust #no-std simple filesystem for embedded devices."
+license = "MIT"
+repository = "https://github.com/hi-squeaky-things/little-weirdo"
+keywords = ["no-std", "filesystem", "embbeded-storage"]
+categories = ["embedded"]
+
+[workspace]
+resolver = "2"
+
+[lib]
+name = "little_weirdo_filesystem"
+
+[dependencies]
+embedded-storage = "0.3.1"
