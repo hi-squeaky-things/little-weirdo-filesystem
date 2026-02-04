@@ -21,7 +21,7 @@ Little Weirdo Filesystem is a lightweight, no-std compatible filesystem designed
 Add the crate to your Cargo.toml:
 ```toml
 [dependencies]
-little-weirdo-filesystem = "0.1" 
+little-weirdo-filesystem = "0.1.0" 
 embedded-storage = "0.3"  # Ensure you have embedded-storage
 ```
 
