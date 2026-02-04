@@ -1,10 +1,12 @@
-
 #![no_std]
 use embedded_storage::{self, Storage};
 extern crate alloc;
 
 pub mod memory_storage;
 
+/// A simple filesystem implementation using embedded storage.
+/// It manages key-value pairs stored in fixed-size blocks.
+/// Each block can hold a portion of the value, with chaining for larger values.
 pub struct WeirdoFileSystem<T>
 where
     T: Storage,
@@ -25,18 +27,20 @@ pub enum WeirdoFileSystemError {
     KeyToLarge,
 }
 
-// block = 2048 = [[u8=status][u16=key][u16=size][u16=next_block][data]]
+// Block structure: 2048 bytes total
 // [0] = 'E' (Empty) / 'O' (Occupied)
-// [1..2] = key
-// [3..4] = size of payload (size = 2041 if key next_block exists)
-// [5..6] = key of next_block in chain
-// [7..] = payload (max = 2048-7 = 2041 bytes)
+// [1..2] = key (u16)
+// [3..4] = size of payload (u16, max 2041 if next_block exists)
+// [5..6] = key of next_block in chain (u16, 0xFFFF if end)
+// [7..] = payload (max 2041 bytes)
 
+/// Status of a block in the filesystem.
 pub enum BlockStatus {
     Empty = 'E' as isize,
     Occupied = 'O' as isize,
 }
 
+// Offsets within each block
 const OFFSET_BLOCK_STATUS: u8 = 0x00;
 const OFFSET_ADDRESS_KEY: u8 = 0x01;
 const OFFSET_ADDRESS_SIZE: u8 = 0x03;
@@ -49,6 +53,9 @@ impl<T> WeirdoFileSystem<T>
 where
     T: Storage,
 {
+    /// Creates a new WeirdoFileSystem instance.
+    /// Initializes the filesystem with the given storage, offset, and size.
+    /// Builds the internal cache of empty blocks.
     pub fn new(storage: T, offset: u32, size: u32) -> Self {
         let mut new_fs = WeirdoFileSystem {
             storage,
@@ -63,6 +70,8 @@ where
         new_fs
     }
 
+    /// Formats the filesystem by marking all blocks as empty.
+    /// Rebuilds the cache afterward.
     pub fn format(&mut self) {
         for block in 0..self.total_blocks {
             let block_address = self.offset + (block * self.block_size as u32);
@@ -74,6 +83,8 @@ where
         self.build_cache();
     }
 
+    /// Builds the cache by scanning blocks to find the first empty block and total blocks.
+    /// Updates empty_block and total_blocks fields.
     pub fn build_cache(&mut self) {
         self.empty_block = 0;
         self.total_blocks = self.size as u32 / self.block_size as u32;
@@ -91,10 +102,15 @@ where
         }
     }
 
+    /// Returns the number of free (empty) blocks available.
     pub fn amount_of_free_blocks(&mut self) -> u32 {
         self.total_blocks - self.empty_block
     }
 
+    /// Writes a key-value pair to the filesystem.
+    /// Splits the payload into chunks if necessary and chains blocks.
+    /// Returns an error if the key is too large.
+    /// TODO: Add out-of-space check.
     pub fn write_key_value(
         &mut self,
         key: u16,
@@ -113,18 +129,22 @@ where
         let mut block_key = key;
         for (_i, block) in chunks.enumerate() {
             let empty_block_address = self.addres_of_empty_block();
+            // Mark block as occupied
             let _ = self.storage.write(
                 empty_block_address + OFFSET_BLOCK_STATUS as u32,
                 &[BlockStatus::Occupied as u8],
             );
+            // Write key
             let _ = self.storage.write(
                 empty_block_address + OFFSET_ADDRESS_KEY as u32,
                 &block_key.to_le_bytes(),
             );
+            // Write size of this chunk
             let _ = self.storage.write(
                 empty_block_address + OFFSET_ADDRESS_SIZE as u32,
                 &(block.len() as u16).to_le_bytes(),
             );
+            // Write next key or end marker
             if block.len() < self.payload_size as usize {
                 let _ = self
                     .storage
@@ -137,6 +157,7 @@ where
                 );
             }
 
+            // Write payload
             let _ = self
                 .storage
                 .write(empty_block_address + OFFSET_ADDRESS_PAYLOAD as u32, block);
@@ -146,6 +167,9 @@ where
         Ok(())
     }
 
+    /// Reads a key-value pair from the filesystem.
+    /// Reassembles the value from chained blocks.
+    /// Returns the size of the read data or an error.
     pub fn read_key_value(
         &mut self,
         key: u16,
@@ -163,13 +187,16 @@ where
             let mut next_key = [0u8; 2];
             block_address = found_block_address;
             loop {
+                // Read size of this chunk
                 let _ = self
                     .storage
                     .read(block_address + OFFSET_ADDRESS_SIZE as u32, &mut stored_size);
+                // Read payload into value buffer
                 let _ = self.storage.read(
                     block_address + OFFSET_ADDRESS_PAYLOAD as u32,
                     &mut value[payload_size as usize..],
                 );
+                // Read next key
                 let _ = self
                     .storage
                     .read(block_address + OFFSET_ADDRESS_NEXT as u32, &mut next_key);
@@ -194,6 +221,8 @@ where
         }
     }
 
+    /// Checks if a key exists in the filesystem.
+    /// Returns (found, block_address) tuple.
     fn contains_key(&mut self, key: u16) -> (bool, u32) {
         for block in 0..self.empty_block {
             let block_address = self.offset + (block * self.block_size as u32);
@@ -208,8 +237,8 @@ where
         return (false, 0);
     }
 
+    /// Returns the address of the next empty block.
     fn addres_of_empty_block(&mut self) -> u32 {
         return self.offset + self.empty_block * self.block_size as u32;
     }
 }
-
