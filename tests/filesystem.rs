@@ -73,4 +73,18 @@ mod unit_tests {
         let free_blocks = filesystem.amount_of_free_blocks();
         assert_eq!(free_blocks, 512);
     }
+
+      #[test]
+    fn test_retrieve_elements() {
+        let mut storage = MemoryStorage::new(0x100000);
+        let mock_data = include_bytes!("./mock-data/filesystem_mock0.bin");
+        storage.load(mock_data);
+
+        let mut filesystem: WeirdoFileSystem<MemoryStorage> =
+            WeirdoFileSystem::new(storage, 0, 0x100000);
+
+        let mut buffer: [u8; 1200] = [0; 1200];
+        let size_of_value = filesystem.read_key_value(700, &mut buffer);
+        println!("size {:?}", size_of_value);
+    }
 }

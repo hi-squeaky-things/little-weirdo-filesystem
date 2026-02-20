@@ -35,5 +35,13 @@ mod unit_tests {
         assert_eq!(storage.capacity(), 0x100000); // Ensure the data vector has the correct size
     }
 
+    #[test]
+    fn test_load_mock_data() {
+        let mut storage = MemoryStorage::new(0x100000);
+        let mock_data = include_bytes!("./mock-data/filesystem_mock0.bin");
+        storage.load(mock_data);
+    }
+
+
     
 }

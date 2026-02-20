@@ -19,6 +19,11 @@ impl MemoryStorage {
     pub fn dump(&mut self) -> &[u8] {
         self.internal_memory.as_slice()
     }
+
+    pub fn load(&mut self, payload: &[u8]) {
+        let len = payload.len().min(self.internal_memory.len());
+        self.internal_memory[..len].copy_from_slice(&payload[..len]);
+    }
 }
 
 impl ReadStorage for MemoryStorage {
