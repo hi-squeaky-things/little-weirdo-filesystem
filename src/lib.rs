@@ -43,11 +43,12 @@ pub enum BlockStatus {
 // Offsets within each block
 const OFFSET_BLOCK_STATUS: u8 = 0x00;
 const OFFSET_ADDRESS_KEY: u8 = 0x01;
-const OFFSET_ADDRESS_SIZE: u8 = 0x03;
-const OFFSET_ADDRESS_NEXT: u8 = 0x05;
-const OFFSET_ADDRESS_PAYLOAD: u8 = 0x07;
-const MAX_KEY_ID: u16 = 999;
-const BLOCK_SIZE: u16 = 2048;
+const OFFSET_ADDRESS_SIZE: u8 = 0x05;
+const OFFSET_ADDRESS_NEXT: u8 = 0x07;
+const OFFSET_VALUE_SIZE: u8 = 0x0B;
+const OFFSET_ADDRESS_PAYLOAD: u8 = 0x0B + 4;
+const MAX_KEY_ID: u32 = 999;
+pub const BLOCK_SIZE: u16 = 2048;
 
 impl<T> WeirdoFileSystem<T>
 where
@@ -103,8 +104,33 @@ where
     }
 
     /// Returns the number of free (empty) blocks available.
+    pub fn amount_of_used_blocks(&mut self) -> u32 {
+        self.empty_block
+    }
+
+    /// Returns the number of free (empty) blocks available.
     pub fn amount_of_free_blocks(&mut self) -> u32 {
         self.total_blocks - self.empty_block
+    }
+
+    pub fn total_blocks(&mut self) -> u32 {
+        self.total_blocks
+    }
+
+    pub fn size_of_key_value(&mut self, key: u32) -> Result<u32, WeirdoFileSystemError> {
+        if key > MAX_KEY_ID {
+            return Err(WeirdoFileSystemError::KeyToLarge);
+        }
+        let (found, found_block_address) = self.contains_key(key);
+        let mut stored_size_of_value = [0u8; 4];
+        if found {
+            let _ = self.storage.read(
+                found_block_address + OFFSET_VALUE_SIZE as u32,
+                &mut stored_size_of_value,
+            );
+            return Ok(u32::from_le_bytes(stored_size_of_value));
+        }
+        Ok(0u32)
     }
 
     /// Writes a key-value pair to the filesystem.
@@ -113,7 +139,7 @@ where
     /// TODO: Add out-of-space check.
     pub fn write_key_value(
         &mut self,
-        key: u16,
+        key: u32,
         payload: &[u8],
     ) -> Result<(), WeirdoFileSystemError> {
         if key > MAX_KEY_ID {
@@ -126,9 +152,15 @@ where
 
         let chunks = payload.chunks(self.payload_size as usize);
 
-        let mut block_key = key;
-        for (_i, block) in chunks.enumerate() {
+        let mut block_key: u32 = key as u32;
+        for (i, block) in chunks.enumerate() {
             let empty_block_address = self.addres_of_empty_block();
+            if i == 0 {
+                let _ = self.storage.write(
+                    empty_block_address + OFFSET_VALUE_SIZE as u32,
+                    &(payload.len() as u32).to_le_bytes(),
+                );
+            }
             // Mark block as occupied
             let _ = self.storage.write(
                 empty_block_address + OFFSET_BLOCK_STATUS as u32,
@@ -146,9 +178,10 @@ where
             );
             // Write next key or end marker
             if block.len() < self.payload_size as usize {
-                let _ = self
-                    .storage
-                    .write(empty_block_address + OFFSET_ADDRESS_NEXT as u32, &[0xFF, 0xFF]);
+                let _ = self.storage.write(
+                    empty_block_address + OFFSET_ADDRESS_NEXT as u32,
+                    &[0xFF, 0xFF],
+                );
             } else {
                 block_key = block_key + 1000;
                 let _ = self.storage.write(
@@ -172,9 +205,9 @@ where
     /// Returns the size of the read data or an error.
     pub fn read_key_value(
         &mut self,
-        key: u16,
+        key: u32,
         value: &mut [u8],
-    ) -> Result<u16, WeirdoFileSystemError> {
+    ) -> Result<u32, WeirdoFileSystemError> {
         if key > MAX_KEY_ID {
             return Err(WeirdoFileSystemError::KeyToLarge);
         }
@@ -182,9 +215,9 @@ where
         let mut block_address: u32;
         let (found, found_block_address) = self.contains_key(key);
         if found {
-            let mut payload_size: u16 = 0;
+            let mut payload_size: u32 = 0;
             let mut stored_size = [0u8; 2];
-            let mut next_key = [0u8; 2];
+            let mut next_key = [0u8; 4];
             block_address = found_block_address;
             loop {
                 // Read size of this chunk
@@ -201,8 +234,8 @@ where
                     .storage
                     .read(block_address + OFFSET_ADDRESS_NEXT as u32, &mut next_key);
 
-                payload_size += u16::from_le_bytes(stored_size);
-                let next_key_retreived = u16::from_le_bytes(next_key);
+                payload_size += u16::from_le_bytes(stored_size) as u32;
+                let next_key_retreived = u32::from_le_bytes(next_key);
 
                 if next_key_retreived == 0xFFFF {
                     break;
@@ -223,14 +256,14 @@ where
 
     /// Checks if a key exists in the filesystem.
     /// Returns (found, block_address) tuple.
-    fn contains_key(&mut self, key: u16) -> (bool, u32) {
+    fn contains_key(&mut self, key: u32) -> (bool, u32) {
         for block in 0..self.empty_block {
             let block_address = self.offset + (block * self.block_size as u32);
-            let mut stored_key = [0u8; 2];
+            let mut stored_key = [0u8; 4];
             let _ = self
                 .storage
                 .read(block_address + OFFSET_ADDRESS_KEY as u32, &mut stored_key);
-            if stored_key == key.to_le_bytes() {
+            if stored_key == (key as u32).to_le_bytes() {
                 return (true, block_address);
             }
         }

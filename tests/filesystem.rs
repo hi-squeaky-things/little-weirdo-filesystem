@@ -17,7 +17,7 @@ mod unit_tests {
 
         let mut buffer: [u8; 2042] = [0; 2042];
         let size_of_value = filesystem.read_key_value(1, &mut buffer).unwrap();
-        assert_eq!(size_of_value, size as u16);
+        assert_eq!(size_of_value, size as u32);
         assert_eq!(&buffer[..size_of_value as usize], payload);
     }
 
@@ -52,7 +52,42 @@ mod unit_tests {
 
         let mut buffer: [u8; 30_000] = [0; 30_000];
         let size_of_value = filesystem.read_key_value(800, &mut buffer).unwrap();
-        assert_eq!(size_of_value, payload.len() as u16);
+        let free_blocks = filesystem.amount_of_free_blocks();
+        //        assert_eq!(free_blocks, 486);
+
+        assert_eq!(size_of_value, payload.len() as u32);
+        assert_eq!(payload, &buffer[..size_of_value as usize]);
+    }
+
+    #[test]
+    fn test_size_of_key() {
+        let storage = MemoryStorage::new(0x100000);
+        let mut filesystem: WeirdoFileSystem<MemoryStorage> =
+            WeirdoFileSystem::new(storage, 0, 0x100000);
+        filesystem.format();
+
+        let payload = include_bytes!("./mock-data/mock1.bin");
+        let _result = filesystem.write_key_value(800, payload).unwrap();
+
+        assert_eq!(
+            filesystem.size_of_key_value(800).unwrap(),
+            payload.len() as u32
+        );
+    }
+
+    #[test]
+    fn test_fs_chunking_larger_then_32kb() {
+        let storage = MemoryStorage::new(0x100000);
+        let mut filesystem: WeirdoFileSystem<MemoryStorage> =
+            WeirdoFileSystem::new(storage, 0, 0x100000);
+        filesystem.format();
+
+        let payload = include_bytes!("./mock-data/mock2.bin");
+        let _result = filesystem.write_key_value(800, payload).unwrap();
+
+        let mut buffer: [u8; 300_000] = [0; 300_000];
+        let size_of_value = filesystem.read_key_value(800, &mut buffer).unwrap();
+        assert_eq!(size_of_value, payload.len() as u32);
         assert_eq!(payload, &buffer[..size_of_value as usize]);
     }
 
@@ -74,7 +109,7 @@ mod unit_tests {
         assert_eq!(free_blocks, 512);
     }
 
-      #[test]
+    #[test]
     fn test_retrieve_elements() {
         let mut storage = MemoryStorage::new(0x100000);
         let mock_data = include_bytes!("./mock-data/filesystem_mock0.bin");
