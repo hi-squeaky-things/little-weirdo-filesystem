@@ -6,6 +6,10 @@
 
 A Rust #no-std simple filesystem for embedded devices.
 
+ See the Little Weirdo in embedded context action, checkout **[Little Squeaky Machine Hardware!](https://github.com/hi-squeaky-things/little-squeaky-machine-hardware)** or buy the embedded reference hardware @ **[Hi Squeaky Things](https://www.hi-squeaky-things.nl)** to support the development of this library.
+
+<img src="https://www.hi-squeaky-things.nl/web/image/1400-5c54f567/Jouw%20alineatekst%20%281%29.webp" width="300">
+
 > [!CAUTION]
 > This project is actively being developed with frequent breaking changes. APIs may shift, features are incomplete, and stability is not guaranteed. Use at your own risk and expect regular updates that might require code adjustments. Have fun!
 
