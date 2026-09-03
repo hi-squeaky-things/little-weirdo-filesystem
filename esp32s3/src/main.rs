@@ -39,5 +39,4 @@ async fn main(spawner: Spawner) {
 
     let mut filesystem: little_weirdo_filesystem::WeirdoFileSystem<FlashStorage> =
         little_weirdo_filesystem::WeirdoFileSystem::new(storage, 0x00220000, 0x100000);
-
 }

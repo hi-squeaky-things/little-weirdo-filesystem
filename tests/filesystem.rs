@@ -53,8 +53,7 @@ mod unit_tests {
         let mut buffer: [u8; 30_000] = [0; 30_000];
         let size_of_value = filesystem.read_key_value(800, &mut buffer).unwrap();
         let free_blocks = filesystem.amount_of_free_blocks();
-        //        assert_eq!(free_blocks, 486);
-
+        assert_eq!(free_blocks, 486);
         assert_eq!(size_of_value, payload.len() as u32);
         assert_eq!(payload, &buffer[..size_of_value as usize]);
     }

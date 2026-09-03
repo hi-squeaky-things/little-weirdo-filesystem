@@ -3,8 +3,8 @@ mod unit_tests {
     extern crate alloc;
     use alloc::vec::Vec;
 
-    use embedded_storage::Storage;
     use embedded_storage::ReadStorage;
+    use embedded_storage::Storage;
     use little_weirdo_filesystem::memory_storage::MemoryStorage;
 
     #[test]
@@ -41,7 +41,4 @@ mod unit_tests {
         let mock_data = include_bytes!("./mock-data/filesystem_mock0.bin");
         storage.load(mock_data);
     }
-
-
-    
 }

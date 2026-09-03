@@ -88,7 +88,7 @@ where
     /// Updates empty_block and total_blocks fields.
     pub fn build_cache(&mut self) {
         self.empty_block = 0;
-        self.total_blocks = self.size as u32 / self.block_size as u32;
+        self.total_blocks = self.size / self.block_size as u32;
         for block in 0..self.total_blocks {
             let address = self.offset + (block * self.block_size as u32);
             let mut block_status = [0u8; 1];
@@ -98,7 +98,7 @@ where
             if block_status[0] == BlockStatus::Empty as u8 {
                 return;
             } else {
-                self.empty_block = self.empty_block + 1;
+                self.empty_block += 1;
             }
         }
     }
@@ -152,7 +152,7 @@ where
 
         let chunks = payload.chunks(self.payload_size as usize);
 
-        let mut block_key: u32 = key as u32;
+        let mut block_key: u32 = key;
         for (i, block) in chunks.enumerate() {
             let empty_block_address = self.addres_of_empty_block();
             if i == 0 {
@@ -183,7 +183,7 @@ where
                     &[0xFF, 0xFF],
                 );
             } else {
-                block_key = block_key + 1000;
+                block_key += 1000;
                 let _ = self.storage.write(
                     empty_block_address + OFFSET_ADDRESS_NEXT as u32,
                     &block_key.to_le_bytes(),
@@ -194,7 +194,7 @@ where
             let _ = self
                 .storage
                 .write(empty_block_address + OFFSET_ADDRESS_PAYLOAD as u32, block);
-            self.empty_block = self.empty_block + 1;
+            self.empty_block += 1;
         }
 
         Ok(())
@@ -248,7 +248,7 @@ where
                 }
             }
 
-            return Ok(payload_size);
+            Ok(payload_size)
         } else {
             Err(WeirdoFileSystemError::KeyNotFound)
         }
@@ -263,15 +263,15 @@ where
             let _ = self
                 .storage
                 .read(block_address + OFFSET_ADDRESS_KEY as u32, &mut stored_key);
-            if stored_key == (key as u32).to_le_bytes() {
+            if stored_key == { key }.to_le_bytes() {
                 return (true, block_address);
             }
         }
-        return (false, 0);
+        (false, 0)
     }
 
     /// Returns the address of the next empty block.
     fn addres_of_empty_block(&mut self) -> u32 {
-        return self.offset + self.empty_block * self.block_size as u32;
+        self.offset + self.empty_block * self.block_size as u32
     }
 }

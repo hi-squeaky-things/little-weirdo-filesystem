@@ -42,7 +42,7 @@ impl ReadStorage for MemoryStorage {
     }
 
     fn capacity(&self) -> usize {
-        return self.internal_memory.len();
+        self.internal_memory.len()
     }
 }
 
